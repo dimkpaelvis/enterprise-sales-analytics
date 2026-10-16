@@ -1,0 +1,13 @@
+# Security
+.env
+
+# Python & Environment Cache
+__pycache__/
+*.pyc
+
+# IDE / Editor Settings
+.vscode/
+
+# Large Datasets (Ignore raw CSV files)
+data/*.csv
+.streamlit/secrets.toml
