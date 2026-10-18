@@ -13,51 +13,92 @@ DB_CONFIG = {
     "database": os.getenv("MYSQL_DATABASE"),
 }
 
-def ingest_csv_to_mysql(csv_path, table_name, insert_sql):
-    df = pd.read_csv(csv_path)
-    # Clean NaN values
-    df = df.where(pd.notna(df), None)
+def ingest_csv_to_mysql(csv_path):
+    if not os.path.exists(csv_path):
+        print(f"File not found: {csv_path}")
+        return pd.DataFrame()
+    # encoding='latin-1' fixes the UnicodeDecodeError on the Customers.csv
+    return pd.read_csv(csv_path, encoding='latin-1')
+
+def insert_data_to_mysql(insert_records, insert_sql, table_name):
+    try:
+        with mysql.connector.connect(**DB_CONFIG) as connection:
+            with connection.cursor() as cursor:
+                # 1. Empty the table first
+                cursor.execute(f"DELETE FROM {table_name};")
+                # 2. Insert the new records
+                cursor.executemany(insert_sql, insert_records)
+                connection.commit()
+                print(f"{cursor.rowcount} rows inserted into {table_name}.")
+                return cursor.rowcount
+    except mysql.connector.Error as e:
+        print(f"Database error inserting into {table_name}: {e}")
+        return 0
+
+# --- SALES ---
+df_sales = ingest_csv_to_mysql('data/Sales.csv')
+if not df_sales.empty:
+    df_sales['Order Date'] = pd.to_datetime(df_sales['Order Date'], errors='coerce').dt.strftime('%Y-%m-%d')
+    df_sales['Delivery Date'] = pd.to_datetime(df_sales['Delivery Date'], errors='coerce').dt.strftime('%Y-%m-%d')
     
-    insert_records = df.values.tolist()
+    # Convert NaN to None properly
+    insert_records = [tuple(x) for x in df_sales.replace({np.nan: None}).values]
     
-    with mysql.connector.connect(**DB_CONFIG) as connection:
-        with connection.cursor() as cursor:
-            cursor.executemany(insert_sql, insert_records)
-            connection.commit()
-            print(f"{cursor.rowcount} rows inserted into {table_name}.")
+    insert_sql = """
+        INSERT INTO sales (`Order Number`, `Line Item`, `Order Date`, `Delivery Date`, `CustomerKey`, `StoreKey`, `ProductKey`, `Quantity`, `Currency Code`)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    insert_data_to_mysql(insert_records, insert_sql, 'sales')
 
+# --- PRODUCTS ---
+df_product = ingest_csv_to_mysql('data/Products.csv')
+if not df_product.empty:
+     # Clean $ and , from prices
+    df_product['Unit Cost USD'] = df_product['Unit Cost USD'].astype(str).str.replace(r'[\$,]', '', regex=True).astype(float)
+    df_product['Unit Price USD'] = df_product['Unit Price USD'].astype(str).str.replace(r'[\$,]', '', regex=True).astype(float)
+    insert_records = [tuple(x) for x in df_product.replace({np.nan: None}).values]
+    
+    insert_sql = """
+        INSERT INTO products (`ProductKey`, `Product Name`, `Brand`, `Color`, `Unit Cost USD`, `Unit Price USD`, `SubcategoryKey`, `Subcategory`, `CategoryKey`, `Category`)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    insert_data_to_mysql(insert_records, insert_sql, 'products')
 
+# --- CUSTOMERS ---
+df_customer = ingest_csv_to_mysql('data/Customers.csv')
+if not df_customer.empty:
+    df_customer['Birthday'] = pd.to_datetime(df_customer['Birthday'], errors='coerce').dt.strftime('%Y-%m-%d')
+    
+    insert_records = [tuple(x) for x in df_customer.replace({np.nan: None}).values]
+    
+    insert_sql = """
+        INSERT INTO customers (`CustomerKey`, `Gender`, `Name`, `City`, `State Code`, `State`, `Zip Code`, `Country`, `Continent`, `Birthday`)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    insert_data_to_mysql(insert_records, insert_sql, 'customers')
 
+# --- EXCHANGE RATES ---
+df_exchange_rate = ingest_csv_to_mysql('data/Exchange_Rates.csv')
+if not df_exchange_rate.empty:
+    df_exchange_rate['Date'] = pd.to_datetime(df_exchange_rate['Date'], errors='coerce').dt.strftime('%Y-%m-%d')
+    
+    insert_records = [tuple(x) for x in df_exchange_rate.replace({np.nan: None}).values]
+    
+    insert_sql = """
+        INSERT INTO exchange_rates (`Date`, `Currency`, `Exchange`)
+        VALUES (%s, %s, %s)
+    """
+    insert_data_to_mysql(insert_records, insert_sql, 'exchange_rates')
 
-df = pd.read_csv('data/Sales.csv')  # Load data from CSV file   
-# 2. Fix the Date Formats (Convert M/D/YYYY to YYYY-MM-DD)
-df['Order Date'] = pd.to_datetime(df['Order Date']).dt.strftime('%Y-%m-%d')
-df['Delivery Date'] = pd.to_datetime(df['Delivery Date']).dt.strftime('%Y-%m-%d')
-
-# 3. Handle the Missing Dates (Convert Pandas NaN to Python None so MySQL reads it as a proper NULL)
-df.replace({np.nan: None}, inplace=True)
-# replace NaN values with None to ensure MySQL interprets them as NULL
-df = df.where(pd.notna(df), None)
-
-insert_records = df.values.tolist()  # Convert the DataFrame into a list of records for insertion
-
-with mysql.connector.connect(**DB_CONFIG) as connection:
-    with connection.cursor() as cursor:
-        sql = """
-            INSERT INTO sales
-            (`Order Number`, `Line Item`, `Order Date`, `Delivery Date`,
-            `CustomerKey`, `StoreKey`, `ProductKey`, `Quantity`, `Currency Code`)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """  # SQL query to insert records
-        cursor.executemany(sql, insert_records)  # Execute the SQL query to insert multiple records
-        connection.commit()  # Commit the changes to the database
-
-        print(f"{cursor.rowcount} rows were inserted.")
-
-print("Data insertion completed successfully.")
-print(df.head())  # Print the first few rows of the DataFrame to verify the data
-
-
-
-
-
+# --- STORES ---
+df_stores = ingest_csv_to_mysql('data/Stores.csv')
+if not df_stores.empty:
+    df_stores['Open Date'] = pd.to_datetime(df_stores['Open Date'], errors='coerce').dt.strftime('%Y-%m-%d')
+    
+    insert_records = [tuple(x) for x in df_stores.replace({np.nan: None}).values]
+    
+    insert_sql = """
+        INSERT INTO stores (`StoreKey`, `Country`, `State`, `Square Meters`, `Open Date`)
+        VALUES (%s, %s, %s, %s, %s)
+    """
+    insert_data_to_mysql(insert_records, insert_sql, 'stores')
