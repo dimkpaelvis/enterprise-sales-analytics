@@ -4,14 +4,15 @@ import mysql.connector
 import numpy as np
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 DB_CONFIG = {
     "host": os.getenv("MYSQL_HOST"),
     "user": os.getenv("MYSQL_USER"),
-    "port": 4000,
+    "port": int(os.getenv("MYSQL_PORT")),
     "password": os.getenv("MYSQL_PASSWORD"),
     "database": os.getenv("MYSQL_DATABASE"),
+    "ssl_disabled": False
 }
 
 def ingest_csv_to_mysql(csv_path):

@@ -5,14 +5,15 @@ import os
 import plotly.express as px
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)  # Load environment variables from .env file, overriding existing ones
 
 DB_CONFIG = {
     "host": os.getenv("MYSQL_HOST"),
     "user": os.getenv("MYSQL_USER"),
-    "port": 4000,
+    "port": int(os.getenv("MYSQL_PORT")),
     "password": os.getenv("MYSQL_PASSWORD"),
     "database": os.getenv("MYSQL_DATABASE"),
+    "ssl_disabled": False
 }
 
 # 1. PAGE CONFIG & CUSTOM CSS
