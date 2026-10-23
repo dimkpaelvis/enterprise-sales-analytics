@@ -1,6 +1,7 @@
 # Enterprise Retail Analytics & Data Trust Pipeline
 **Architect & Developer:** Elvis  
-**Live Application:** https://enterprise-sales-analytics-kab4yfktbntsb6qlff3x99.streamlit.app/
+**Enterprise-Dashboard:** https://enterprise-sales-analytics-kab4yfktbntsb6qlff3x99.streamlit.app/  
+**SQL-Trust-Audit:** https://sql-trust-auditor-auuujtpudncssxeikj3rrx.streamlit.app/
 
 ## 📌 Architecture Overview
 This project is an end-to-end Data Engineering and Analytics pipeline built for a retail environment. It ingests messy raw data, normalizes it, securely loads it into a cloud database, and serves it to a web-facing dashboard. 
@@ -30,7 +31,20 @@ Crucially, this system implements **Data Governance & Grain Auditing** to preven
 * Utilizes SQL Joins and subqueries (`EXISTS`) optimized for low-latency retrieval.
 * Renders real-time interactive KPIs (Revenue, Sales Volume) and dynamic Plotly charts.
 
-## 🛡️ Data Governance: The "Trust Audit" 
-Dashboards are useless if the underlying joins inflate the data. This project treats SQL execution as an engineered system, not just a query. 
+  ## 🧰 Applications in this Repository
 
-Before deploying revenue KPIs, the pipeline was audited for **grain shifts**. A 4-way `INNER JOIN` across `sales`, `products`, `stores`, and `customers` was verified against the base `sales` table (`COUNT(*)` = 62,884 for both). This proves the schema cleanly maps many-to-one relationships and guarantees the total revenue sum is 100% accurate, with zero Cartesian inflation.
+This repository contains two distinct Streamlit applications, separating business intelligence from data governance.
+
+### 1. The Executive Dashboard (`app.py`)
+* **Target Audience:** Business Owners, C-Suite, Sales Managers.
+* **Function:** A real-time reporting interface that visualizes revenue, product performance, and geographic sales distribution. 
+* **Run locally:** `streamlit run app.py`
+
+### 2. The SQL Revenue Trust Auditor (`audit_app.py`)
+* **Target Audience:** Data Engineers, Analytics Engineers, Database Administrators.
+* **Function:** A data governance testing environment. It intercepts SQL `JOIN` queries and dynamically executes `COUNT(*)` checks against the base table to detect Cartesian explosions (row inflation) or dropped rows (silent data loss) before queries are pushed to production.
+* **Key Features:** 
+  * Parses raw SQL and injects it into derived tables for safe execution.
+  * Tracks query execution latency (milliseconds) for performance tuning.
+  * Utilizes Streamlit Session State to cache audit history and prevent redundant database pings.
+* **Run locally:** `streamlit run audit_app.py`
